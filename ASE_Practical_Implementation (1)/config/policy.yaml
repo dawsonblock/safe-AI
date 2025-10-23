@@ -132,7 +132,15 @@ sandbox_policy:
     - "fdisk"
     - "sudo"
     - "su"
-    - "chmod 777"
+    - "chmod"
+    - "chown"
+    - "mv"
+    - "sh"
+    - "bash"
+    - "zsh"
+    - "curl"
+    - "wget"
+    - "nc"
   
   # Signing requirements
   require_signing: true
