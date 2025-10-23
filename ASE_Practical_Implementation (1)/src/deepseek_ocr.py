@@ -461,21 +461,35 @@ class CockpitOCRIntegration:
         }
         
         if successful:
+            # Safely compute averages by filtering None
+            ratios = [r.compression_ratio for r in successful if r.compression_ratio is not None]
+            accuracies = [r.accuracy_estimate for r in successful if r.accuracy_estimate is not None]
+            times = [r.processing_time_ms for r in successful if r.processing_time_ms is not None]
+            costs = [r.cost_usd for r in successful if r.cost_usd is not None]
+            total_in = sum(len(r.original_text or "") for r in successful)
+            total_out = sum(len(r.compressed_text or "") for r in successful)
+
+            avg_ratio = (sum(ratios) / len(ratios)) if ratios else 0.0
+            avg_accuracy = (sum(accuracies) / len(accuracies)) if accuracies else 0.0
+            avg_time = (sum(times) / len(times)) if times else 0.0
+            total_time = sum(times) if times else 0.0
+            total_cost = sum(costs) if costs else 0.0
+
             stats['compression'] = {
-                'average_ratio': np.mean([r.compression_ratio for r in successful]),
-                'average_accuracy': np.mean([r.accuracy_estimate for r in successful]),
-                'total_chars_input': sum(len(r.original_text) for r in successful),
-                'total_chars_output': sum(len(r.compressed_text) for r in successful)
+                'average_ratio': avg_ratio,
+                'average_accuracy': avg_accuracy,
+                'total_chars_input': total_in,
+                'total_chars_output': total_out
             }
             stats['performance'] = {
-                'total_time_ms': sum(r.processing_time_ms for r in successful),
-                'average_time_ms': np.mean([r.processing_time_ms for r in successful]),
-                'total_cost_usd': sum(r.cost_usd for r in successful)
+                'total_time_ms': total_time,
+                'average_time_ms': avg_time,
+                'total_cost_usd': total_cost
             }
-        
+    
         if failed:
-            stats['errors'] = [r.error for r in failed]
-        
+            stats['errors'] = [r.error for r in failed if r.error]
+    
         return stats
     
     def get_status(self) -> Dict[str, Any]:
