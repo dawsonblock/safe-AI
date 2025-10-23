@@ -389,8 +389,23 @@ class FDQCAgent:
         obs_tensor = self._encode_observation(observation)
         
         # Select action using PPO policy
-        action_idx, log_prob, workspace_dim = self.ppo.select_action(obs_tensor)
-        action_idx = action_idx % len(available_actions)  # Ensure valid index
+        # In a real implementation, the action space should be fixed or masked.
+        # For this example, we'll mask the logits for unavailable actions.
+        action_logits, value, workspace_dim = self.ppo(obs_tensor)
+
+        # Create a mask for available actions
+        mask = torch.full_like(action_logits, -float('inf'))
+        valid_indices = list(range(len(available_actions)))
+        mask[valid_indices] = 0
+
+        # Apply mask
+        masked_logits = action_logits + mask
+
+        # Select action from masked distribution
+        dist = torch.distributions.Categorical(logits=masked_logits)
+        action_idx = dist.sample().item()
+        log_prob = dist.log_prob(torch.tensor(action_idx))
+
         selected_action = available_actions[action_idx]
         
         # Create action embedding
