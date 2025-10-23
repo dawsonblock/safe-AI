@@ -475,9 +475,13 @@ class FDQCAgent:
                 last_action.get('value', 0.0),
                 last_action['log_prob'],
                 last_action['workspace_dim']
-            )
-    
-    def update_policy(self) -> Dict[str, float]:
+            elif isinstance(value, str):
+                # Use a stable hash function for deterministic encoding
+                import hashlib
+                hash_obj = hashlib.sha256(value.encode())
+                # Use the first few bytes of the hash for the feature
+                feature_val = int.from_bytes(hash_obj.digest()[:4], 'big')
+                features.append(float(feature_val % 1000) / 1000.0)
         """Update PPO policy based on collected experience"""
         return self.ppo.update()
     
