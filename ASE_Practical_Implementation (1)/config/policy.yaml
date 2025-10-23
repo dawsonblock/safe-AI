@@ -323,8 +323,8 @@ emergency:
   auto_rollback:
     enabled: true
     conditions:
-      - error_rate_exceeds: 0.1
-      - safety_violations_exceed: 1
+      - error_rate_exceeds: 0.2
+      - safety_violations_exceed: 3
       - uptime_below: 95.0
   
   # Manual emergency stop
