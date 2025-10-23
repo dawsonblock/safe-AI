@@ -255,7 +255,7 @@ class TestOCRIntegration:
         # Process
         result = ocr.client.process_document(test_file)
         
-        assert result.success == True
+        assert result.success
         assert result.original_text is not None
         assert result.compressed_text is not None
         assert result.compression_ratio < 0.15  # Should be ~10% compression
