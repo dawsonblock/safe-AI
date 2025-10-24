@@ -463,8 +463,8 @@ class FDQCAgent:
         # Update safety validator
         action_embedding = self._create_action_embedding(action, 8)
         self.safety.record_outcome(action_embedding, was_safe)
-        
-        # Store for PPO update
+    
+        # Store for PPO update using the most recent action context
         obs_tensor = self._encode_observation(observation)
         if len(self.action_history) > 0:
             last_action = self.action_history[-1]
@@ -473,16 +473,11 @@ class FDQCAgent:
                 last_action['action_index'],
                 reward,
                 last_action.get('value', 0.0),
-                last_action['log_prob'],
+                float(last_action['log_prob']),
                 last_action['workspace_dim']
-            elif isinstance(value, str):
-                # Use a stable hash function for deterministic encoding
-                import hashlib
-                hash_obj = hashlib.sha256(value.encode())
-                # Use the first few bytes of the hash for the feature
-                feature_val = int.from_bytes(hash_obj.digest()[:4], 'big')
-                features.append(float(feature_val % 1000) / 1000.0)
-        """Update PPO policy based on collected experience"""
+            )
+    
+        # Update PPO policy based on collected experience
         return self.ppo.update()
     
     def _encode_observation(self, observation: Dict[str, Any]) -> torch.Tensor:
