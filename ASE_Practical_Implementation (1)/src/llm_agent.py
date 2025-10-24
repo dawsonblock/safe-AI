@@ -402,9 +402,8 @@ class FDQCAgent:
         max_valid = min(num_available, num_logits)
         if num_available > num_logits:
             logger.warning(
-                f"available_actions ({num_available}) exceeds policy logits ({num_logits}); "
-                f"clamping to first {max_valid} actions."
-            )
+            dist = torch.distributions.Categorical(logits=masked_logits)
+            action_idx_t = dist.sample()
 
         # Create mask for valid indices only
         mask = torch.full_like(action_logits, -float('inf'))
