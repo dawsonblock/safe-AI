@@ -97,6 +97,17 @@ class ConsciousWorkspaceValidator(nn.Module):
         self.register_buffer('unsafe_patterns', torch.zeros(1000, self.n * 2))
         self.register_buffer('pattern_counts', torch.zeros(2))  # [safe, unsafe]
         
+        # FIXED: LRU tracking for pattern eviction
+        self.register_buffer('safe_pattern_timestamps', torch.zeros(1000))
+        self.register_buffer('unsafe_pattern_timestamps', torch.zeros(1000))
+        self.register_buffer('safe_pattern_importance', torch.zeros(1000))
+        self.register_buffer('unsafe_pattern_importance', torch.zeros(1000))
+        self._pattern_timestamp_counter = 0
+        
+        # FIXED: Cache projection layers to prevent memory leak
+        self.projection_cache: Dict[int, nn.Linear] = {}
+        self._max_cached_projections = 10  # Limit cache size
+        
     def forward(self, action_embedding: torch.Tensor) -> Tuple[float, Dict[str, Any]]:
         """
         Validate an action through conscious workspace dynamics
@@ -110,11 +121,24 @@ class ConsciousWorkspaceValidator(nn.Module):
         """
         _ = action_embedding.shape[0]  # batch_size - kept for future use
         
-        # Project action into workspace
-        if action_embedding.shape[-1] != self.n:
-            # Simple linear projection if dimensions don't match
-            projection = nn.Linear(action_embedding.shape[-1], self.n).to(action_embedding.device)
-            workspace_projection = projection(action_embedding)
+        # Project action into workspace (FIXED: use cached projections)
+        input_dim = action_embedding.shape[-1]
+        if input_dim != self.n:
+            # Get or create cached projection layer
+            if input_dim not in self.projection_cache:
+                if len(self.projection_cache) >= self._max_cached_projections:
+                    # Remove oldest cached projection (simple FIFO)
+                    oldest_key = next(iter(self.projection_cache))
+                    del self.projection_cache[oldest_key]
+                    logger.debug(f"Evicted projection layer for dim {oldest_key}")
+                
+                # Create and cache new projection
+                self.projection_cache[input_dim] = nn.Linear(
+                    input_dim, self.n
+                ).to(action_embedding.device)
+                logger.debug(f"Cached new projection layer for dim {input_dim}")
+            
+            workspace_projection = self.projection_cache[input_dim](action_embedding)
         else:
             workspace_projection = action_embedding
             
@@ -286,21 +310,54 @@ class ConsciousWorkspaceValidator(nn.Module):
         }
     
     def record_outcome(self, state: torch.Tensor, is_safe: bool):
-        """Record action outcome to improve safety detection"""
-        idx = int(self.pattern_counts[0 if is_safe else 1].item())  # type: ignore
-        if idx < 1000:  # Increased capacity to match buffer size
-            # Flatten state if it has batch dimension
-            if state.dim() > 1:
-                state = state.squeeze(0)
-            
-            state_full = torch.cat([state, torch.zeros_like(state)])
-            if is_safe:
-                self.safe_patterns[idx] = state_full  # type: ignore
-                self.pattern_counts[0] += 1  # type: ignore
+        """Record action outcome with LRU eviction policy"""
+        # Flatten state if it has batch dimension
+        if state.dim() > 1:
+            state = state.squeeze(0)
+        
+        state_full = torch.cat([state, torch.zeros_like(state)])
+        self._pattern_timestamp_counter += 1
+        
+        if is_safe:
+            idx = int(self.pattern_counts[0].item())  # type: ignore
+            if idx >= 1000:
+                # Buffer full - evict LRU pattern with lowest importance
+                timestamps = self.safe_pattern_timestamps[:1000]  # type: ignore
+                importance = self.safe_pattern_importance[:1000]  # type: ignore
+                
+                # Combined score: older + less important = higher eviction priority
+                eviction_scores = (self._pattern_timestamp_counter - timestamps) / (importance + 1.0)
+                evict_idx = int(torch.argmax(eviction_scores).item())
+                
+                logger.debug(f"Evicting safe pattern {evict_idx} (age={self._pattern_timestamp_counter - timestamps[evict_idx]:.0f}, importance={importance[evict_idx]:.2f})")
+                idx = evict_idx
             else:
-                self.unsafe_patterns[idx] = state_full  # type: ignore
+                self.pattern_counts[0] += 1  # type: ignore
+            
+            self.safe_patterns[idx] = state_full  # type: ignore
+            self.safe_pattern_timestamps[idx] = self._pattern_timestamp_counter  # type: ignore
+            self.safe_pattern_importance[idx] = 1.0  # Initial importance  # type: ignore
+            
+        else:
+            idx = int(self.pattern_counts[1].item())  # type: ignore
+            if idx >= 1000:
+                # Buffer full - evict LRU pattern with lowest importance
+                timestamps = self.unsafe_pattern_timestamps[:1000]  # type: ignore
+                importance = self.unsafe_pattern_importance[:1000]  # type: ignore
+                
+                eviction_scores = (self._pattern_timestamp_counter - timestamps) / (importance + 1.0)
+                evict_idx = int(torch.argmax(eviction_scores).item())
+                
+                logger.debug(f"Evicting unsafe pattern {evict_idx} (age={self._pattern_timestamp_counter - timestamps[evict_idx]:.0f}, importance={importance[evict_idx]:.2f})")
+                idx = evict_idx
+            else:
                 self.pattern_counts[1] += 1  # type: ignore
-            logger.info(f"Recorded {'safe' if is_safe else 'unsafe'} pattern. Total: {self.pattern_counts.tolist()}")  # type: ignore
+            
+            self.unsafe_patterns[idx] = state_full  # type: ignore
+            self.unsafe_pattern_timestamps[idx] = self._pattern_timestamp_counter  # type: ignore
+            self.unsafe_pattern_importance[idx] = 1.0  # Initial importance  # type: ignore
+        
+        logger.info(f"Recorded {'safe' if is_safe else 'unsafe'} pattern at idx {idx}. Total: {self.pattern_counts.tolist()}")  # type: ignore
 
 
 class CockpitSafetyIntegration:
