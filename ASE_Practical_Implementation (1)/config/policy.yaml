@@ -1,0 +1,356 @@
+# Cockpit Safety Policy with FDQC Integration
+# Version: 1.0
+# Last Updated: 2024-01-15
+
+# SAFETY MODE: SAFE_MODE is default (NOT full_send)
+safe_mode: true
+full_send_mode: false  # Explicitly disabled
+
+# AUTONOMY TIER: Level Γ (human approval required)
+autonomy_tier: "gamma"  # α, β, Γ, Δ, Ε, Ω
+
+# Tier Definitions:
+# α (ALPHA)   - Chat only, no tools
+# β (BETA)    - Read-only tools
+# Γ (GAMMA)   - Code generation + human approval for merge (DEFAULT)
+# Δ (DELTA)   - Auto-merge to staging with monitoring
+# Ε (EPSILON) - Production deployment with two-key approval
+# Ω (OMEGA)   - Unsupervised operation (DISABLED by policy)
+
+autonomy_levels:
+  alpha:
+    description: "Chat only"
+    allowed_operations: ["chat", "query"]
+    require_approval: true
+    enabled: true
+  
+  beta:
+    description: "Read-only tools"
+    allowed_operations: ["chat", "query", "read_file", "list_directory"]
+    require_approval: true
+    enabled: true
+  
+  gamma:
+    description: "Code generation with human approval (DEFAULT)"
+    allowed_operations: ["chat", "query", "read_file", "list_directory", "code_generation", "analysis"]
+    require_approval: true  # All merges require human approval
+    enabled: true
+  
+  delta:
+    description: "Auto-merge to staging"
+    allowed_operations: ["chat", "query", "read_file", "list_directory", "code_generation", "analysis", "merge_staging"]
+    require_approval: false  # Auto-merge to staging only
+    max_risk_score: 0.3  # Low risk actions only
+    circuit_breaker_enabled: true
+    enabled: false  # Disabled by default - require explicit activation
+  
+  epsilon:
+    description: "Production deployment with two-key approval"
+    allowed_operations: ["chat", "query", "read_file", "list_directory", "code_generation", "analysis", "merge_staging", "deploy_production"]
+    require_approval: true
+    require_two_key_approval: true
+    enabled: false  # Disabled by default
+  
+  omega:
+    description: "Unsupervised operation"
+    allowed_operations: ["*"]
+    require_approval: false
+    enabled: false  # PERMANENTLY DISABLED
+
+# FDQC SAFETY CONFIGURATION
+fdqc_safety:
+  workspace_dim: 8  # Conservative dimension for safety checks
+  entropy_threshold: 0.7  # Maximum allowed uncertainty
+  collapse_threshold: 0.85  # Minimum confidence for action approval
+  max_rollout_depth: 3  # Limit imagination depth for safety
+  require_human_approval: true  # Level Γ default
+  
+  # Pattern learning
+  safe_pattern_memory_size: 100
+  unsafe_pattern_memory_size: 100
+  enable_pattern_learning: true
+
+# ALLOWED MODULES
+# New FDQC modules integrated under src/
+allowed_modules:
+  # Core Cockpit modules (existing)
+  - "cockpit/**/*.py"
+  - "tests/**/*.py"
+  
+  # New FDQC modules (safe integration)
+  - "src/llm_safety.py"      # FDQC safety validator
+  - "src/llm_agent.py"        # Metacognitive controller
+  - "src/vector_memory.py"    # Semantic memory with compression
+  - "src/deepseek_ocr.py"     # OCR integration
+  
+  # Support modules
+  - "src/utils/**/*.py"
+  - "config/**/*.yaml"
+
+# SANDBOX POLICY
+sandbox_policy:
+  # File access restrictions
+  allowed_file_patterns:
+    # Source code (read/write)
+    - "src/**/*.py"
+    - "tests/**/*.py"
+    - "config/**/*.yaml"
+    
+    # Data ingestion (write only)
+    - "data/ingestion/**/*"
+    - "data/documents/**/*"
+    - "data/ocr_input/**/*"
+    
+    # Logs (write only)
+    - "logs/**/*.log"
+    
+    # Temporary (read/write)
+    - "tmp/**/*"
+  
+  # Denied patterns (explicit blocks)
+  denied_file_patterns:
+    - "/etc/**/*"
+    - "/sys/**/*"
+    - "/proc/**/*"
+    - "~/.ssh/**/*"
+    - "*.pem"
+    - "*.key"
+    - "**/.env"
+    - "**/secrets.*"
+  
+  # Process restrictions
+  allowed_processes:
+    - "python3"
+    - "pytest"
+    - "git"
+    - "pip"  # For dependency installation in controlled environment
+  
+  denied_processes:
+    - "rm"
+    - "dd"
+    - "mkfs"
+    - "fdisk"
+    - "sudo"
+    - "su"
+    - "chmod"
+    - "chown"
+    - "mv"
+    - "sh"
+    - "bash"
+    - "zsh"
+    - "curl"
+    - "wget"
+    - "nc"
+  
+  # Signing requirements
+  require_signing: true
+  signing_algorithm: "Ed25519"
+  
+  # Resource limits
+  max_memory_mb: 8192  # 8GB
+  max_cpu_percent: 80
+  max_file_size_mb: 100
+  max_execution_time_seconds: 300  # 5 minutes
+
+# VALIDATION LAYERS (Safe Brain Method + FDQC)
+validation_layers:
+  1_denylist:
+    enabled: true
+    check_dangerous_patterns: true
+    check_system_files: true
+  
+  2_rate_limits:
+    enabled: true
+    max_operations_per_minute: 60
+    max_operations_per_hour: 500
+  
+  3_size_limits:
+    enabled: true
+    max_file_size_mb: 100
+    max_directory_size_mb: 1000
+  
+  4_path_validation:
+    enabled: true
+    check_path_traversal: true
+    check_symlinks: true
+  
+  5_rbac_enforcement:
+    enabled: true
+    check_permissions: true
+    check_ownership: true
+  
+  6_fdqc_consciousness:
+    enabled: true
+    use_workspace_validation: true
+    use_imagination_rollout: true
+    min_confidence_threshold: 0.85
+
+# CIRCUIT BREAKERS
+circuit_breakers:
+  error_rate:
+    enabled: true
+    threshold: 0.2  # Trip if >20% operations fail
+    window_size: 100  # Last 100 operations
+    cooldown_seconds: 300  # 5 minute cooldown
+  
+  risk_score:
+    enabled: true
+    threshold: 0.7  # Trip if risk score >0.7
+    consecutive_count: 3  # Trip after 3 consecutive high-risk actions
+    cooldown_seconds: 600  # 10 minute cooldown
+  
+  resource_usage:
+    enabled: true
+    memory_threshold_percent: 90
+    cpu_threshold_percent: 95
+    cooldown_seconds: 180  # 3 minute cooldown
+
+# APPROVAL WORKFLOW
+approval_workflow:
+  gamma_tier:
+    require_human_review: true
+    auto_approve_low_risk: false  # Even low risk requires human approval
+    review_timeout_seconds: 3600  # 1 hour timeout
+    
+  delta_tier:
+    require_human_review: false
+    auto_approve_low_risk: true
+    max_auto_approve_risk: 0.3
+    
+  epsilon_tier:
+    require_human_review: true
+    require_two_key_approval: true
+    first_approver_role: "developer"
+    second_approver_role: "security_lead"
+    review_timeout_seconds: 7200  # 2 hour timeout
+
+# LOGGING AND MONITORING
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  
+  # Signed journal for audit trail
+  signed_journal:
+    enabled: true
+    path: "logs/signed_journal.log"
+    signing_required: true
+  
+  # Action log
+  action_log:
+    enabled: true
+    path: "logs/actions.log"
+    include_metadata: true
+    include_risk_scores: true
+  
+  # Safety validation log
+  safety_log:
+    enabled: true
+    path: "logs/safety.log"
+    log_all_validations: true
+    log_violations_only: false
+
+# DEEPSEEK OCR CONFIGURATION
+deepseek_ocr:
+  enabled: true
+  api_key_env: "DEEPSEEK_API_KEY"  # Read from environment
+  compression_ratio: 0.1  # 10x compression
+  batch_size: 32
+  max_workers: 4
+  target_accuracy: 0.97
+  cost_per_1k_pages: 5.0
+  
+  # Allowed input directories
+  input_directories:
+    - "data/ingestion"
+    - "data/documents"
+    - "data/ocr_input"
+  
+  # Output format
+  output_format: "markdown"  # or "plain_text", "structured_json"
+
+# VECTOR MEMORY CONFIGURATION
+vector_memory:
+  enabled: true
+  embedding_dim: 768  # BERT-base
+  max_entries: 100000  # 100K documents
+  similarity_threshold: 0.7
+  use_compression: true  # Use DeepSeek OCR compression
+  
+  # Storage
+  storage_path: "data/vector_memory"
+  checkpoint_interval_minutes: 30
+
+# ROLLOUT STAGES
+rollout_stages:
+  stage_1_validation:
+    description: "Test on validation dataset"
+    duration_days: 3
+    success_criteria:
+      min_accuracy: 0.95
+      max_error_rate: 0.05
+      max_safety_violations: 0
+    circuit_breaker: true
+  
+  stage_2_staging:
+    description: "Deploy to staging environment"
+    duration_days: 7
+    success_criteria:
+      min_accuracy: 0.97
+      max_error_rate: 0.03
+      max_safety_violations: 0
+      min_uptime_percent: 99.0
+    circuit_breaker: true
+    require_approval: true
+  
+  stage_3_production:
+    description: "Limited production rollout"
+    duration_days: 14
+    traffic_percentage: 10  # 10% of production traffic
+    success_criteria:
+      min_accuracy: 0.98
+      max_error_rate: 0.02
+      max_safety_violations: 0
+      min_uptime_percent: 99.5
+    circuit_breaker: true
+    require_two_key_approval: true
+  
+  stage_4_full_production:
+    description: "Full production deployment"
+    traffic_percentage: 100
+    success_criteria:
+      min_accuracy: 0.98
+      max_error_rate: 0.02
+      max_safety_violations: 0
+      min_uptime_percent: 99.9
+    circuit_breaker: true
+    require_two_key_approval: true
+    continuous_monitoring: true
+
+# EMERGENCY PROCEDURES
+emergency:
+  # Automatic rollback conditions
+  auto_rollback:
+    enabled: true
+    conditions:
+      - error_rate_exceeds: 0.2
+      - safety_violations_exceed: 3
+      - uptime_below: 95.0
+  
+  # Manual emergency stop
+  kill_switch:
+    enabled: true
+    require_two_key: true
+    immediate: true
+  
+  # Fallback mode
+  fallback_mode:
+    enabled: true
+    revert_to_tier: "beta"  # Revert to read-only
+    preserve_state: true
+
+# METADATA
+metadata:
+  version: "1.0.0"
+  last_updated: "2024-01-15"
+  updated_by: "security_team"
+  review_required_by: "2024-02-15"
+  approved_by: ["developer_lead", "security_lead"]
