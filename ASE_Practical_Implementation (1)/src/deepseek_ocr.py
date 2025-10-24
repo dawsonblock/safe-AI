@@ -441,12 +441,16 @@ class CockpitOCRIntegration:
         return stats
     
     def _is_allowed_path(self, path: Path) -> bool:
-        """Check if path is within allowed directories"""
+        """Check if path is within allowed directories securely"""
         path = path.resolve()
-        return any(
-            str(path).startswith(str(allowed))
-            for allowed in self.allowed_directories
-        )
+        for allowed in self.allowed_directories:
+            try:
+                # Python 3.9+: emulate is_relative_to
+                path.relative_to(allowed)
+                return True
+            except ValueError:
+                continue
+        return False
     
     def _compile_results(self, results: List[OCRResult]) -> Dict[str, Any]:
         """Compile results into summary statistics"""
