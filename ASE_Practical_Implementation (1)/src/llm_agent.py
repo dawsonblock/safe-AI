@@ -393,19 +393,37 @@ class FDQCAgent:
         # For this example, we'll mask the logits for unavailable actions.
         action_logits, value, workspace_dim = self.ppo(obs_tensor)
 
-        # Create a mask for available actions
+        # Validate available actions against logits dimension
+        num_logits = action_logits.shape[-1]
+        num_available = len(available_actions)
+        if num_available == 0:
+            raise ValueError("No available_actions provided; cannot select an action.")
+
+        max_valid = min(num_available, num_logits)
+        if num_available > num_logits:
+            logger.warning(
+                f"available_actions ({num_available}) exceeds policy logits ({num_logits}); "
+                f"clamping to first {max_valid} actions."
+            )
+
+        # Create mask for valid indices only
         mask = torch.full_like(action_logits, -float('inf'))
-        valid_indices = list(range(len(available_actions)))
-        mask[valid_indices] = 0
+        valid_indices = torch.arange(max_valid, device=action_logits.device)
+        mask[valid_indices] = 0.0
 
         # Apply mask
         masked_logits = action_logits + mask
 
-        # Select action from masked distribution
+        # Fallback if distribution is degenerate (all -inf for valid indices)
+        if not torch.isfinite(masked_logits[valid_indices]).any():
+            masked_logits = torch.full_like(action_logits, -float('inf'))
+            masked_logits[valid_indices] = 0.0  # uniform over valid actions
+
         dist = torch.distributions.Categorical(logits=masked_logits)
-        action_idx = dist.sample().item()
         action_idx_t = dist.sample()
-        action_idx = action_idx_t.item()
+        action_idx = int(action_idx_t.item())
+        log_prob = float(dist.log_prob(action_idx_t).item())
+
         log_prob = dist.log_prob(action_idx_t)
 
         selected_action = available_actions[action_idx]
