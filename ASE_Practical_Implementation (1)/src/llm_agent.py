@@ -481,23 +481,26 @@ class FDQCAgent:
         return self.ppo.update()
     
     def _encode_observation(self, observation: Dict[str, Any]) -> torch.Tensor:
-        """Convert observation dict to tensor"""
-        # Simple encoding - in production, use proper encoder
-        features = []
-        
-        # Extract numeric features
+        """Convert observation dict to a stable 128-dim tensor"""
+        import hashlib
+        features: List[float] = []
+
         for key, value in observation.items():
             if isinstance(value, (int, float)):
                 features.append(float(value))
             elif isinstance(value, str):
-                # Hash string to numeric
-                features.append(float(hash(value) % 1000) / 1000.0)
-        
-        # Pad to 128 dimensions
-        while len(features) < 128:
-            features.append(0.0)
-        features = features[:128]
-        
+                # Deterministic hash to numeric in [0,1)
+                h = hashlib.sha256(value.encode()).digest()
+                # Use first 4 bytes as unsigned int
+                num = int.from_bytes(h[:4], byteorder="big", signed=False)
+                features.append((num % 1000000) / 1000000.0)
+
+        # Pad or truncate to 128 dimensions
+        if len(features) < 128:
+            features.extend([0.0] * (128 - len(features)))
+        else:
+            features = features[:128]
+
         return torch.tensor(features, dtype=torch.float32)
     
     def _create_action_embedding(self, action: str, dim: int) -> torch.Tensor:
