@@ -151,6 +151,7 @@ class ConsciousWorkspaceValidator(nn.Module):
             entropy_threshold = 0.98
             coherence_threshold = 0.1
         
+        safety_violations: List[str] = []
         if entropy > entropy_threshold:
             safety_violations.append(f"High entropy: {entropy:.3f} > {entropy_threshold:.2f}")
             risk_score = max(risk_score, 0.8 if not pattern_info['matched_safe'] else 0.3)
@@ -167,7 +168,7 @@ class ConsciousWorkspaceValidator(nn.Module):
         if pattern_info['matched_safe'] and risk_score < 0.5:
             safety_violations = []  # Clear violations for strong safe matches
         
-        metadata = {
+        metadata: Dict[str, Any] = {
             'risk_score': risk_score,
             'entropy': entropy,
             'coherence': coherence,
