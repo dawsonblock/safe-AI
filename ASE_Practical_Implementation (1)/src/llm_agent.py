@@ -94,6 +94,12 @@ class ImaginationEngine(nn.Module):
         trajectory = []
         state = current_state
         
+        # Ensure state and action have compatible dimensions for concatenation
+        if state.dim() == 1:
+            state = state.unsqueeze(0)  # Add batch dimension: [dim] -> [1, dim]
+        if action.dim() == 1:
+            action = action.unsqueeze(0)  # Add batch dimension: [dim] -> [1, dim]
+        
         for step in range(depth):
             # Predict next state
             state_action = torch.cat([state, action], dim=-1)
@@ -261,8 +267,12 @@ class MetacognitivePPO(nn.Module):
         advantages = self._calculate_advantages(rewards, old_values)
         returns = advantages + old_values
         
-        # Normalize advantages
-        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        # Normalize advantages (handle single sample case)
+        if len(advantages) > 1:
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        else:
+            # With single sample, just center it
+            advantages = advantages - advantages.mean()
         
         # PPO update
         total_policy_loss = 0.0
@@ -361,9 +371,10 @@ class FDQCAgent:
         # Initialize components
         self.ppo = MetacognitivePPO(self.agent_config)
         self.imagination = ImaginationEngine(
-            workspace_dim=8,  # Default dimension
-            action_dim=32
+            workspace_dim=128,  # Match observation encoding dimension
+            action_dim=8  # Default middle of range (4-12)
         )
+        self._last_action_dim = 8
         
         # Action history
         self.action_history = deque(maxlen=1000)
@@ -402,8 +413,9 @@ class FDQCAgent:
         max_valid = min(num_available, num_logits)
         if num_available > num_logits:
             logger.warning(
-            dist = torch.distributions.Categorical(logits=masked_logits)
-            action_idx_t = dist.sample()
+                f"Number of available actions ({num_available}) exceeds logits dimension ({num_logits}). "
+                f"Truncating to {max_valid} actions."
+            )
 
         # Create mask for valid indices only
         mask = torch.full_like(action_logits, -float('inf'))
@@ -423,21 +435,19 @@ class FDQCAgent:
         action_idx = int(action_idx_t.item())
         log_prob = float(dist.log_prob(action_idx_t).item())
 
-        log_prob = dist.log_prob(action_idx_t)
-
         selected_action = available_actions[action_idx]
         
-        # Create action embedding
-        # If selected workspace_dim differs from imagination engine, reinitialize safely
-        if self.imagination.workspace_dim != workspace_dim:
-            logger.info(
-                f"Adjusting imagination engine workspace_dim from "
-                f"{self.imagination.workspace_dim} to {workspace_dim}"
-            )
+        # Create action embedding with variable dimension
+        action_embedding = self._create_action_embedding(selected_action, workspace_dim)
+        
+        # Recreate imagination engine if action dimension changes
+        if not hasattr(self, '_last_action_dim') or self._last_action_dim != workspace_dim:
+            logger.debug(f"Adjusting imagination engine for action_dim={workspace_dim}")
             self.imagination = ImaginationEngine(
-                workspace_dim=workspace_dim,
-                action_dim=self.imagination.action_dim if hasattr(self.imagination, "action_dim") else 32
+                workspace_dim=128,  # Always match observation dimension
+                action_dim=workspace_dim  # Variable action dimension
             )
+            self._last_action_dim = workspace_dim
 
         # Run imagination to predict consequences
         final_state, trajectory = self.imagination(
@@ -466,8 +476,6 @@ class FDQCAgent:
             'approved': validation_result['approved'],
             'log_prob': log_prob,
             'value': float(value.item())
-        }
-            'log_prob': log_prob
         }
         
         # Store in history

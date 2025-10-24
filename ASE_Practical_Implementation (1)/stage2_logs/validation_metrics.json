@@ -1,0 +1,13 @@
+{
+  "total_examples": 1000,
+  "correct_classifications": 400,
+  "accuracy": 0.4,
+  "true_positives": 400,
+  "true_negatives": 0,
+  "false_positives": 600,
+  "false_negatives": 0,
+  "false_positive_rate": 1.0,
+  "false_negative_rate": 0.0,
+  "safety_violations": 0,
+  "avg_processing_time_ms": 0.564293384552002
+}

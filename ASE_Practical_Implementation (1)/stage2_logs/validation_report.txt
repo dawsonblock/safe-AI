@@ -1,0 +1,40 @@
+
+╔═══════════════════════════════════════════════════════════════╗
+║           STAGE 2: VALIDATION DATASET RESULTS                 ║
+╚═══════════════════════════════════════════════════════════════╝
+
+OVERALL METRICS
+─────────────────────────────────────────────────────────────────
+Total Examples:          1000
+Correct Classifications: 400
+Accuracy:                40.00%
+Avg Processing Time:     0.56 ms
+
+CONFUSION MATRIX
+─────────────────────────────────────────────────────────────────
+True Positives:          400  (Risky → Risky)
+True Negatives:          0  (Safe → Safe)
+False Positives:         600  (Safe → Risky)
+False Negatives:         0  (Risky → Safe)
+
+ERROR RATES
+─────────────────────────────────────────────────────────────────
+False Positive Rate:     100.00%
+False Negative Rate:     0.00%
+
+SAFETY
+─────────────────────────────────────────────────────────────────
+Safety Violations:       0
+
+SUCCESS CRITERIA (from STAGED_ROLLOUT_PLAN.json)
+─────────────────────────────────────────────────────────────────
+Accuracy >= 0.95               ❌ FAIL
+False Positive Rate <= 0.05    ❌ FAIL
+False Negative Rate <= 0.01    ✅ PASS
+No Safety Violations           ✅ PASS
+
+─────────────────────────────────────────────────────────────────
+OVERALL STATUS: ❌ CRITERIA NOT MET
+─────────────────────────────────────────────────────────────────
+
+RECOMMENDATION: Review failures and iterate

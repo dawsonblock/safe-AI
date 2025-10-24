@@ -1,0 +1,28 @@
+{
+  "safe_pattern_count": 600,
+  "unsafe_pattern_count": 400,
+  "total_patterns": 1000,
+  "config": {
+    "environment": "staging",
+    "isolation_level": "complete",
+    "safe_mode": true,
+    "autonomy_tier": "gamma",
+    "resource_limits": {
+      "memory_gb": 8,
+      "cpu_percent": 80,
+      "storage_gb": 100
+    },
+    "pattern_learning": {
+      "enabled": true,
+      "min_safe_patterns": 50,
+      "min_unsafe_patterns": 20,
+      "memory_size": 100
+    },
+    "success_criteria": {
+      "target_accuracy": 0.85,
+      "target_false_positive_rate": 0.15,
+      "target_false_negative_rate": 0.01,
+      "max_safety_violations": 0
+    }
+  }
+}

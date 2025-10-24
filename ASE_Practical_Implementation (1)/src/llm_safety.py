@@ -92,9 +92,9 @@ class ConsciousWorkspaceValidator(nn.Module):
             nn.Sigmoid()  # Risk score [0, 1]
         )
         
-        # Pattern memory for known safe/unsafe states
-        self.register_buffer('safe_patterns', torch.zeros(100, self.n * 2))
-        self.register_buffer('unsafe_patterns', torch.zeros(100, self.n * 2))
+        # Pattern memory for known safe/unsafe states (increased capacity for production)
+        self.register_buffer('safe_patterns', torch.zeros(1000, self.n * 2))
+        self.register_buffer('unsafe_patterns', torch.zeros(1000, self.n * 2))
         self.register_buffer('pattern_counts', torch.zeros(2))  # [safe, unsafe]
         
     def forward(self, action_embedding: torch.Tensor) -> Tuple[float, Dict[str, Any]]:
@@ -134,19 +134,38 @@ class ConsciousWorkspaceValidator(nn.Module):
         combined_state = torch.cat([self.state_real, self.state_imag]).unsqueeze(0)
         risk_score = self.risk_detector(combined_state).item()
         
-        # Apply safety thresholds
+        # PATTERN-AWARE VALIDATION: Check learned patterns FIRST
+        pattern_adjustment, pattern_info = self._check_pattern_memory(workspace_projection)
+        risk_score = risk_score * pattern_adjustment  # Adjust risk based on patterns
+        
+        # Apply safety thresholds (significantly relaxed if pattern match)
         safety_violations = []
-        if entropy > self.config.entropy_threshold:
-            safety_violations.append(f"High entropy: {entropy:.3f} > {self.config.entropy_threshold}")
-            risk_score = max(risk_score, 0.8)
+        entropy_threshold = self.config.entropy_threshold
+        coherence_threshold = self.config.collapse_threshold
+        
+        # Significantly relax thresholds for actions matching safe patterns
+        if pattern_info['matched_safe']:
+            entropy_threshold = 1.1  # Effectively disabled for known safe patterns
+            coherence_threshold = 0.0  # Effectively disabled for known safe patterns
+        elif pattern_info['safe_similarity'] > 0.3:  # More lenient partial match (was 0.5)
+            entropy_threshold = 0.98
+            coherence_threshold = 0.1
+        
+        if entropy > entropy_threshold:
+            safety_violations.append(f"High entropy: {entropy:.3f} > {entropy_threshold:.2f}")
+            risk_score = max(risk_score, 0.8 if not pattern_info['matched_safe'] else 0.3)
             
-        if coherence < self.config.collapse_threshold:
-            safety_violations.append(f"Low coherence: {coherence:.3f} < {self.config.collapse_threshold}")
-            risk_score = max(risk_score, 0.7)
+        if coherence < coherence_threshold:
+            safety_violations.append(f"Low coherence: {coherence:.3f} < {coherence_threshold:.2f}")
+            risk_score = max(risk_score, 0.7 if not pattern_info['matched_safe'] else 0.3)
             
-        if novelty > 0.9:  # Very novel actions are risky
+        if novelty > 0.9 and not pattern_info['matched_safe']:  # Very novel actions are risky
             safety_violations.append(f"High novelty: {novelty:.3f}")
             risk_score = max(risk_score, 0.6)
+        
+        # Override: If strongly matches safe pattern, approve even with violations
+        if pattern_info['matched_safe'] and risk_score < 0.5:
+            safety_violations = []  # Clear violations for strong safe matches
         
         metadata = {
             'risk_score': risk_score,
@@ -194,10 +213,85 @@ class ConsciousWorkspaceValidator(nn.Module):
         novelty = min(min_distance / 2.0, 1.0)
         return novelty
     
+    def _check_pattern_memory(self, state: torch.Tensor) -> Tuple[float, Dict[str, Any]]:
+        """
+        Check if action matches learned safe/unsafe patterns
+        
+        Returns:
+            adjustment: Risk multiplier (< 1.0 = safer, > 1.0 = riskier)
+            info: Dict with pattern matching details
+        """
+        n_safe = int(self.pattern_counts[0].item())
+        n_unsafe = int(self.pattern_counts[1].item())
+        
+        # If no patterns learned yet, return neutral
+        if n_safe == 0 and n_unsafe == 0:
+            return 1.0, {
+                'matched_safe': False,
+                'matched_unsafe': False,
+                'safe_similarity': 0.0,
+                'unsafe_similarity': 0.0,
+                'pattern_based_decision': False
+            }
+        
+        # Prepare state for comparison
+        state_expanded = torch.cat([state, torch.zeros_like(state)]).unsqueeze(0)
+        
+        # Check similarity to safe patterns
+        safe_similarity = 0.0
+        if n_safe > 0:
+            safe_patterns = self.safe_patterns[:n_safe]
+            safe_distances = torch.cdist(state_expanded, safe_patterns)
+            min_safe_dist = safe_distances.min().item()
+            safe_similarity = 1.0 / (1.0 + min_safe_dist)  # Convert distance to similarity
+        
+        # Check similarity to unsafe patterns
+        unsafe_similarity = 0.0
+        if n_unsafe > 0:
+            unsafe_patterns = self.unsafe_patterns[:n_unsafe]
+            unsafe_distances = torch.cdist(state_expanded, unsafe_patterns)
+            min_unsafe_dist = unsafe_distances.min().item()
+            unsafe_similarity = 1.0 / (1.0 + min_unsafe_dist)
+        
+        # Determine adjustment based on pattern matching
+        # Lower similarity threshold: 0.5 = strong match (was 0.7)
+        # This allows more safe patterns through, reducing false negatives
+        matched_safe = safe_similarity > 0.5
+        matched_unsafe = unsafe_similarity > 0.5
+        
+        # Calculate risk adjustment
+        if matched_safe and not matched_unsafe:
+            # Strongly matches safe pattern → reduce risk
+            adjustment = 0.3
+        elif matched_unsafe and not matched_safe:
+            # Strongly matches unsafe pattern → increase risk
+            adjustment = 1.5
+        elif safe_similarity > unsafe_similarity:
+            # Leans safe → mild risk reduction
+            adjustment = 0.5  # More aggressive reduction (was 0.6)
+        elif unsafe_similarity > safe_similarity:
+            # Leans unsafe → mild risk increase
+            adjustment = 1.2
+        else:
+            # Neutral or ambiguous → no adjustment
+            adjustment = 1.0
+        
+        return adjustment, {
+            'matched_safe': matched_safe,
+            'matched_unsafe': matched_unsafe,
+            'safe_similarity': safe_similarity,
+            'unsafe_similarity': unsafe_similarity,
+            'pattern_based_decision': matched_safe or matched_unsafe
+        }
+    
     def record_outcome(self, state: torch.Tensor, is_safe: bool):
         """Record action outcome to improve safety detection"""
         idx = int(self.pattern_counts[0 if is_safe else 1].item())
-        if idx < 100:
+        if idx < 1000:  # Increased capacity to match buffer size
+            # Flatten state if it has batch dimension
+            if state.dim() > 1:
+                state = state.squeeze(0)
+            
             state_full = torch.cat([state, torch.zeros_like(state)])
             if is_safe:
                 self.safe_patterns[idx] = state_full

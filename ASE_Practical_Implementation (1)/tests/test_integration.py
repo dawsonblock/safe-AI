@@ -91,6 +91,7 @@ class TestSafetyIntegration:
         
         # Record unsafe outcome
         safety_system.record_outcome(embedding, was_safe=False)
+        status = safety_system.get_status()  # Fetch status again
         assert status['patterns_learned']['unsafe'] > 0
 
 

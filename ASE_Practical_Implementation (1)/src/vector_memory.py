@@ -124,8 +124,12 @@ class DeepSeekOCRCompressor:
         # Select most informative sentences (simple heuristic)
         scored_sentences = []
         for sent in sentences:
+            # Skip empty sentences
+            sent_tokens = sent.split()
+            if not sent_tokens:
+                continue
             # Score based on length and keyword density
-            score = len(sent) * (1 + sent.count(' ') / len(sent.split()))
+            score = len(sent) * (1 + sent.count(' ') / len(sent_tokens))
             scored_sentences.append((score, sent))
         
         # Sort by score and take top sentences
@@ -312,10 +316,16 @@ class VectorMemory:
         threshold = similarity_threshold or self.config.similarity_threshold
         mask = similarities >= threshold
         
+        # Check if any results pass threshold
+        num_matches = mask.sum().item()
+        if num_matches == 0:
+            logger.debug(f"No documents found above similarity threshold {threshold}")
+            return []
+        
         # Get top-k
         topk_values, topk_indices = torch.topk(
             similarities[mask],
-            min(top_k, mask.sum().item()),
+            min(top_k, num_matches),
             largest=True
         )
         
@@ -427,19 +437,29 @@ class VectorMemory:
         Generate embedding for text
         
         In production, this would use BERT or similar encoder.
-        For now, use simple hash-based embedding.
+        For now, use simple word-based embedding with some semantic awareness.
         """
-        # Simulate embedding generation
-        hash_obj = hashlib.sha256(text.encode())
-        hash_bytes = hash_obj.digest()
+        # Normalize text
+        text_lower = text.lower()
+        words = text_lower.split()
         
-        # Convert to float tensor
-        embedding = []
-        for i in range(self.config.embedding_dim):
-            byte_idx = i % len(hash_bytes)
-            embedding.append(float(hash_bytes[byte_idx]) / 255.0)
+        # Create embedding based on word hashes
+        embedding = torch.zeros(self.config.embedding_dim, dtype=torch.float32)
         
-        return torch.tensor(embedding, dtype=torch.float32)
+        for word in words:
+            # Hash each word
+            word_hash = hashlib.sha256(word.encode()).digest()
+            # Add contribution to embedding
+            for i in range(self.config.embedding_dim):
+                byte_idx = i % len(word_hash)
+                embedding[i] += float(word_hash[byte_idx]) / 255.0
+        
+        # Normalize to unit length for cosine similarity
+        norm = torch.norm(embedding)
+        if norm > 0:
+            embedding = embedding / norm
+        
+        return embedding
     
     def _filter_by_metadata(self, metadata_filter: Dict[str, Any]) -> List[str]:
         """Filter documents by metadata"""

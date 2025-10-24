@@ -16,6 +16,7 @@ import torch
 from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass
 from pathlib import Path
+import os
 import json
 import logging
 from PIL import Image
@@ -43,7 +44,7 @@ class OCRConfig:
     
     def __post_init__(self):
         if self.supported_formats is None:
-            self.supported_formats = ['.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp']
+            self.supported_formats = ['.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.txt']
 
 
 @dataclass
@@ -523,33 +524,34 @@ class CockpitOCRIntegration:
 
 if __name__ == "__main__":
     # Quick self-test
+    import tempfile
     print("Testing DeepSeek OCR Integration...")
     
-    # Create test directory
-    test_dir = Path("/home/user/test_ocr_data")
-    test_dir.mkdir(exist_ok=True)
-    
-    # Create test document
-    test_file = test_dir / "test_document.txt"
-    test_file.write_text("This is a test document for OCR processing. " * 100)
-    
-    # Initialize OCR
-    ocr = CockpitOCRIntegration(allowed_directories=[test_dir])
-    print(f"Initial status: {json.dumps(ocr.get_status(), indent=2)}")
-    
-    # Process test document
-    result = ocr.client.process_document(test_file)
-    print(f"\nProcessing result:")
-    print(f"  Success: {result.success}")
-    if result.success:
-        print(f"  Original length: {len(result.original_text)} chars")
-        print(f"  Compressed length: {len(result.compressed_text)} chars")
-        print(f"  Compression ratio: {result.compression_ratio:.2%}")
-        print(f"  Accuracy estimate: {result.accuracy_estimate:.2%}")
-        print(f"  Processing time: {result.processing_time_ms:.0f} ms")
-        print(f"  Cost: ${result.cost_usd:.4f}")
-    
-    # Final stats
-    print(f"\nFinal status: {json.dumps(ocr.get_status(), indent=2)}")
-    
-    print("\n✓ Self-test complete")
+    # Create test directory in temp
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_dir = Path(tmpdir)
+        
+        # Create test document
+        test_file = test_dir / "test_document.txt"
+        test_file.write_text("This is a test document for OCR processing. " * 100)
+        
+        # Initialize OCR
+        ocr = CockpitOCRIntegration(allowed_directories=[test_dir])
+        print(f"Initial status: {json.dumps(ocr.get_status(), indent=2)}")
+        
+        # Process test document
+        result = ocr.client.process_document(test_file)
+        print(f"\nProcessing result:")
+        print(f"  Success: {result.success}")
+        if result.success:
+            print(f"  Original length: {len(result.original_text)} chars")
+            print(f"  Compressed length: {len(result.compressed_text)} chars")
+            print(f"  Compression ratio: {result.compression_ratio:.2%}")
+            print(f"  Accuracy estimate: {result.accuracy_estimate:.2%}")
+            print(f"  Processing time: {result.processing_time_ms:.0f} ms")
+            print(f"  Cost: ${result.cost_usd:.4f}")
+        
+        # Final stats
+        print(f"\nFinal status: {json.dumps(ocr.get_status(), indent=2)}")
+        
+        print("\n✓ Self-test complete")
