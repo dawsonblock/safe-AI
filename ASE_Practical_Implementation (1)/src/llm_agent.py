@@ -485,15 +485,20 @@ class FDQCAgent:
         import hashlib
         features: List[float] = []
 
-        for key, value in observation.items():
+        # Stable ordering to ensure deterministic encoding
+        for key in sorted(observation.keys()):
+            value = observation[key]
             if isinstance(value, (int, float)):
                 features.append(float(value))
             elif isinstance(value, str):
-                # Deterministic hash to numeric in [0,1)
                 h = hashlib.sha256(value.encode()).digest()
-                # Use first 4 bytes as unsigned int
                 num = int.from_bytes(h[:4], byteorder="big", signed=False)
-                features.append((num % 1000000) / 1000000.0)
+                features.append((num % 1_000_000) / 1_000_000.0)
+            else:
+                # Fallback: hash the stringified value for stability
+                s = hashlib.sha256(str(value).encode()).digest()
+                num = int.from_bytes(s[:4], byteorder="big", signed=False)
+                features.append((num % 1_000_000) / 1_000_000.0)
 
         # Pad or truncate to 128 dimensions
         if len(features) < 128:
