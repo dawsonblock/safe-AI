@@ -404,7 +404,9 @@ class FDQCAgent:
         # Select action from masked distribution
         dist = torch.distributions.Categorical(logits=masked_logits)
         action_idx = dist.sample().item()
-        log_prob = dist.log_prob(torch.tensor(action_idx))
+        action_idx_t = dist.sample()
+        action_idx = action_idx_t.item()
+        log_prob = dist.log_prob(action_idx_t)
 
         selected_action = available_actions[action_idx]
         
