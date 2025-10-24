@@ -509,12 +509,18 @@ class FDQCAgent:
         return torch.tensor(features, dtype=torch.float32)
     
     def _create_action_embedding(self, action: str, dim: int) -> torch.Tensor:
-        """Create embedding for action"""
+        """Create embedding for action with exact dimension."""
         import hashlib
-        hash_obj = hashlib.sha256(action.encode())
-        hash_bytes = hash_obj.digest()[:dim * 4]
-        embedding = torch.tensor([float(b) / 255.0 for b in hash_bytes[:dim]])
-        return embedding.unsqueeze(0)
+        hb = hashlib.sha256(action.encode()).digest()
+        # Repeat bytes to ensure sufficient length, then truncate to dim
+        needed = dim
+        buf = bytearray()
+        while len(buf) < needed:
+            buf.extend(hb)
+            hb = hashlib.sha256(hb).digest()  # evolve to avoid periodicity
+        vals = [float(b) / 255.0 for b in buf[:dim]]
+        emb = torch.tensor(vals, dtype=torch.float32).unsqueeze(0)
+        return emb
     
     def get_status(self) -> Dict[str, Any]:
         """Get agent status"""
