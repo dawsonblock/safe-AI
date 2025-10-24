@@ -429,8 +429,17 @@ class FDQCAgent:
         selected_action = available_actions[action_idx]
         
         # Create action embedding
-        action_embedding = self._create_action_embedding(selected_action, workspace_dim)
-        
+        # If selected workspace_dim differs from imagination engine, reinitialize safely
+        if self.imagination.workspace_dim != workspace_dim:
+            logger.info(
+                f"Adjusting imagination engine workspace_dim from "
+                f"{self.imagination.workspace_dim} to {workspace_dim}"
+            )
+            self.imagination = ImaginationEngine(
+                workspace_dim=workspace_dim,
+                action_dim=self.imagination.action_dim if hasattr(self.imagination, "action_dim") else 32
+            )
+
         # Run imagination to predict consequences
         final_state, trajectory = self.imagination(
             obs_tensor,
@@ -438,7 +447,7 @@ class FDQCAgent:
             depth=self.agent_config.imagination_depth
         )
         predicted_quality = self.imagination.evaluate_plan(trajectory)
-        
+
         # Safety validation through FDQC workspace
         cockpit_results = {'passed_basic_checks': True}  # Placeholder
         validation_result = self.safety.validate_action(
@@ -446,7 +455,7 @@ class FDQCAgent:
             action_embedding,
             cockpit_results
         )
-        
+
         result = {
             'action': selected_action,
             'action_index': action_idx,
@@ -456,6 +465,9 @@ class FDQCAgent:
             'safety_validation': validation_result,
             'requires_approval': validation_result['requires_human_approval'],
             'approved': validation_result['approved'],
+            'log_prob': log_prob,
+            'value': float(value.item())
+        }
             'log_prob': log_prob
         }
         
