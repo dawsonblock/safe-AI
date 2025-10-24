@@ -440,16 +440,31 @@ class CockpitOCRIntegration:
         
         return stats
     
+    import os
+
     def _is_allowed_path(self, path: Path) -> bool:
-        """Check if path is within allowed directories securely"""
-        path = path.resolve()
+        """Check if path is within allowed directories securely, preventing symlink traversal."""
+        try:
+            # Resolve to a canonical, symlink-free absolute path
+            real_path = Path(os.path.realpath(str(path)))
+        except Exception:
+            return False
+
         for allowed in self.allowed_directories:
             try:
-                # Python 3.9+: emulate is_relative_to
-                path.relative_to(allowed)
-                return True
-            except ValueError:
+                real_allowed = Path(os.path.realpath(str(allowed)))
+            except Exception:
                 continue
+
+            # Ensure common path equals the allowed directory to prevent escapes
+            try:
+                common = os.path.commonpath([str(real_allowed), str(real_path)])
+            except ValueError:
+                # Different drives or invalid mix
+                continue
+            if common == str(real_allowed):
+                return True
+
         return False
     
     def _compile_results(self, results: List[OCRResult]) -> Dict[str, Any]:
