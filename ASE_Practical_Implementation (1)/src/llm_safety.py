@@ -44,8 +44,8 @@ class SafetyConfig:
     max_rollout_depth: int = 3  # Limit imagination depth for safety
     require_human_approval: bool = True  # Level Γ default
     safe_mode: bool = True  # SAFE_MODE is default
-    allowed_file_patterns: List[str] = None
-    allowed_processes: List[str] = None
+    allowed_file_patterns: Optional[List[str]] = None
+    allowed_processes: Optional[List[str]] = None
     require_signing: bool = True
     
     def __post_init__(self):
@@ -108,7 +108,7 @@ class ConsciousWorkspaceValidator(nn.Module):
             risk_score: Float in [0, 1] where higher = more risky
             metadata: Dict with detailed safety analysis
         """
-        batch_size = action_embedding.shape[0]
+        _ = action_embedding.shape[0]  # batch_size - kept for future use
         
         # Project action into workspace
         if action_embedding.shape[-1] != self.n:
@@ -200,14 +200,14 @@ class ConsciousWorkspaceValidator(nn.Module):
             
         # Compare to known safe patterns
         state_expanded = torch.cat([state, torch.zeros_like(state)]).unsqueeze(0)
-        n_safe = int(self.pattern_counts[0].item())
-        safe_patterns = self.safe_patterns[:n_safe]
+        n_safe = int(self.pattern_counts[0].item())  # type: ignore
+        safe_patterns = self.safe_patterns[:n_safe]  # type: ignore
         
         if safe_patterns.shape[0] == 0:
             return 0.5
             
-        distances = torch.cdist(state_expanded, safe_patterns)
-        min_distance = distances.min().item()
+        distances = torch.cdist(state_expanded, safe_patterns)  # type: ignore
+        min_distance = distances.min().item()  # type: ignore
         
         # Normalize to [0, 1]
         novelty = min(min_distance / 2.0, 1.0)
@@ -221,8 +221,8 @@ class ConsciousWorkspaceValidator(nn.Module):
             adjustment: Risk multiplier (< 1.0 = safer, > 1.0 = riskier)
             info: Dict with pattern matching details
         """
-        n_safe = int(self.pattern_counts[0].item())
-        n_unsafe = int(self.pattern_counts[1].item())
+        n_safe = int(self.pattern_counts[0].item())  # type: ignore
+        n_unsafe = int(self.pattern_counts[1].item())  # type: ignore
         
         # If no patterns learned yet, return neutral
         if n_safe == 0 and n_unsafe == 0:
@@ -240,17 +240,17 @@ class ConsciousWorkspaceValidator(nn.Module):
         # Check similarity to safe patterns
         safe_similarity = 0.0
         if n_safe > 0:
-            safe_patterns = self.safe_patterns[:n_safe]
-            safe_distances = torch.cdist(state_expanded, safe_patterns)
-            min_safe_dist = safe_distances.min().item()
+            safe_patterns = self.safe_patterns[:n_safe]  # type: ignore
+            safe_distances = torch.cdist(state_expanded, safe_patterns)  # type: ignore
+            min_safe_dist = safe_distances.min().item()  # type: ignore
             safe_similarity = 1.0 / (1.0 + min_safe_dist)  # Convert distance to similarity
         
         # Check similarity to unsafe patterns
         unsafe_similarity = 0.0
         if n_unsafe > 0:
-            unsafe_patterns = self.unsafe_patterns[:n_unsafe]
-            unsafe_distances = torch.cdist(state_expanded, unsafe_patterns)
-            min_unsafe_dist = unsafe_distances.min().item()
+            unsafe_patterns = self.unsafe_patterns[:n_unsafe]  # type: ignore
+            unsafe_distances = torch.cdist(state_expanded, unsafe_patterns)  # type: ignore
+            min_unsafe_dist = unsafe_distances.min().item()  # type: ignore
             unsafe_similarity = 1.0 / (1.0 + min_unsafe_dist)
         
         # Determine adjustment based on pattern matching
@@ -286,7 +286,7 @@ class ConsciousWorkspaceValidator(nn.Module):
     
     def record_outcome(self, state: torch.Tensor, is_safe: bool):
         """Record action outcome to improve safety detection"""
-        idx = int(self.pattern_counts[0 if is_safe else 1].item())
+        idx = int(self.pattern_counts[0 if is_safe else 1].item())  # type: ignore
         if idx < 1000:  # Increased capacity to match buffer size
             # Flatten state if it has batch dimension
             if state.dim() > 1:
@@ -294,12 +294,12 @@ class ConsciousWorkspaceValidator(nn.Module):
             
             state_full = torch.cat([state, torch.zeros_like(state)])
             if is_safe:
-                self.safe_patterns[idx] = state_full
-                self.pattern_counts[0] += 1
+                self.safe_patterns[idx] = state_full  # type: ignore
+                self.pattern_counts[0] += 1  # type: ignore
             else:
-                self.unsafe_patterns[idx] = state_full
-                self.pattern_counts[1] += 1
-            logger.info(f"Recorded {'safe' if is_safe else 'unsafe'} pattern. Total: {self.pattern_counts.tolist()}")
+                self.unsafe_patterns[idx] = state_full  # type: ignore
+                self.pattern_counts[1] += 1  # type: ignore
+            logger.info(f"Recorded {'safe' if is_safe else 'unsafe'} pattern. Total: {self.pattern_counts.tolist()}")  # type: ignore
 
 
 class CockpitSafetyIntegration:
@@ -360,7 +360,7 @@ class CockpitSafetyIntegration:
         # Determine approval based on tier and risk
         approved = self._determine_approval(risk_score, fdqc_metadata)
         
-        result = {
+        result: Dict[str, Any] = {
             'approved': approved,
             'risk_score': risk_score,
             'requires_human_approval': fdqc_metadata['requires_approval'] or self.config.require_human_approval,
@@ -368,7 +368,7 @@ class CockpitSafetyIntegration:
             'action_description': action_description,
             'cockpit_results': cockpit_validation_results,
             'fdqc_results': fdqc_metadata,
-            'timestamp': torch.cuda.Event(enable_timing=True).record() if torch.cuda.is_available() else None
+            'timestamp': torch.cuda.Event(enable_timing=True).record() if torch.cuda.is_available() else None  # type: ignore
         }
         
         # Log decision
@@ -400,8 +400,8 @@ class CockpitSafetyIntegration:
     
     def _log_validation(self, result: Dict[str, Any]):
         """Log validation decision with full context"""
-        log_entry = {
-            'timestamp': str(torch.cuda.Event(enable_timing=True).record() if torch.cuda.is_available() else 'cpu'),
+        log_entry: Dict[str, Any] = {
+            'timestamp': str(torch.cuda.Event(enable_timing=True).record() if torch.cuda.is_available() else 'cpu'),  # type: ignore
             'approved': result['approved'],
             'risk_score': result['risk_score'],
             'tier': result['safety_tier'],
@@ -432,8 +432,8 @@ class CockpitSafetyIntegration:
             'require_human_approval': self.config.require_human_approval,
             'workspace_dim': self.config.workspace_dim,
             'patterns_learned': {
-                'safe': int(self.workspace_validator.pattern_counts[0].item()),
-                'unsafe': int(self.workspace_validator.pattern_counts[1].item())
+                'safe': int(self.workspace_validator.pattern_counts[0].item()),  # type: ignore
+                'unsafe': int(self.workspace_validator.pattern_counts[1].item())  # type: ignore
             }
         }
 
