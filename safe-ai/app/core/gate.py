@@ -38,7 +38,9 @@ class ManifestGate:
         Returns:
             Hex-encoded SHA-256 hash
         """
-        manifest_json = manifest.model_dump_json(sort_keys=True, exclude_none=True)
+        import json
+        manifest_dict = manifest.model_dump(exclude_none=True)
+        manifest_json = json.dumps(manifest_dict, sort_keys=True, separators=(',', ':'))
         manifest_bytes = manifest_json.encode("utf-8")
         return hashlib.sha256(manifest_bytes).hexdigest()
 
@@ -56,7 +58,9 @@ class ManifestGate:
             SignedEnvelope with signature
         """
         # Serialize manifest
-        manifest_json = manifest.model_dump_json(sort_keys=True, exclude_none=True)
+        import json
+        manifest_dict = manifest.model_dump(exclude_none=True)
+        manifest_json = json.dumps(manifest_dict, sort_keys=True, separators=(',', ':'))
         payload_bytes = manifest_json.encode("utf-8")
 
         # Sign
