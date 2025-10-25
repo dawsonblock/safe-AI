@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FDQC-Cockpit Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 28px;
+            color: #667eea;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-ready { background: #10b981; color: white; }
+        .status-initializing { background: #f59e0b; color: white; }
+        .status-error { background: #ef4444; color: white; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            color: #667eea;
+            border-bottom: 2px solid #f3f4f6;
+            padding-bottom: 8px;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .metric-value {
+            font-weight: 600;
+            font-size: 16px;
+            color: #111827;
+        }
+
+        .action-panel {
+            grid-column: 1 / -1;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-family: monospace;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .result-box {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 8px;
+            background: #f9fafb;
+            border-left: 4px solid #667eea;
+            display: none;
+        }
+
+        .result-box.show {
+            display: block;
+        }
+
+        .result-box.success {
+            background: #d1fae5;
+            border-left-color: #10b981;
+        }
+
+        .result-box.error {
+            background: #fee2e2;
+            border-left-color: #ef4444;
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .alert-info { background: #dbeafe; color: #1e40af; }
+        .alert-warning { background: #fef3c7; color: #92400e; }
+        .alert-error { background: #fee2e2; color: #991b1b; }
+        .alert-critical { background: #fce7f3; color: #831843; }
+
+        .log-entry {
+            padding: 8px 12px;
+            border-left: 3px solid #e5e7eb;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-family: monospace;
+            background: #f9fafb;
+            border-radius: 4px;
+        }
+
+        .log-entry.action { border-left-color: #3b82f6; }
+        .log-entry.outcome { border-left-color: #10b981; }
+        .log-entry.checkpoint { border-left-color: #8b5cf6; }
+
+        .progress-bar {
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+        }
+
+        .chart-container {
+            height: 200px;
+            margin-top: 16px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .loading {
+            animation: pulse 2s infinite;
+        }
+
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .action-button {
+            padding: 12px;
+            background: #f3f4f6;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .action-button:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .action-button.selected {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>
+                🧠 FDQC-Cockpit Dashboard
+            </h1>
+            <div>
+                <span id="system-status" class="status-badge status-initializing">Initializing</span>
+            </div>
+        </header>
+
+        <!-- System Metrics -->
+        <div class="grid">
+            <div class="card">
+                <h2>📊 System Status</h2>
+                <div class="metric">
+                    <span class="metric-label">Safety Tier</span>
+                    <span class="metric-value" id="safety-tier">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Safe Mode</span>
+                    <span class="metric-value" id="safe-mode">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">BERT Model</span>
+                    <span class="metric-value" id="bert-model">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Device</span>
+                    <span class="metric-value" id="device">-</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>🎯 Validation Metrics</h2>
+                <div class="metric">
+                    <span class="metric-label">Total Validations</span>
+                    <span class="metric-value" id="total-validations">0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Approval Rate</span>
+                    <span class="metric-value" id="approval-rate">0%</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Error Rate</span>
+                    <span class="metric-value" id="error-rate">0%</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Avg Risk Score</span>
+                    <span class="metric-value" id="avg-risk">0.000</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>🧬 Pattern Memory</h2>
+                <div class="metric">
+                    <span class="metric-label">Safe Patterns</span>
+                    <span class="metric-value" id="safe-patterns">0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Unsafe Patterns</span>
+                    <span class="metric-value" id="unsafe-patterns">0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Memory Utilization</span>
+                    <span class="metric-value" id="memory-util">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="memory-progress" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>⚡ Performance</h2>
+                <div class="metric">
+                    <span class="metric-label">BERT Encodings</span>
+                    <span class="metric-value" id="bert-encodings">0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Cache Hit Rate</span>
+                    <span class="metric-value" id="cache-hit-rate">0%</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Avg Encoding Time</span>
+                    <span class="metric-value" id="avg-time">0ms</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Simulation Mode</span>
+                    <span class="metric-value" id="simulation-mode">No</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Selection Panel -->
+        <div class="grid">
+            <div class="card action-panel">
+                <h2>🎮 Action Selection</h2>
+                
+                <div class="form-group">
+                    <label for="observation">Observation (JSON)</label>
+                    <textarea id="observation" placeholder='{"current_file": "src/test.py", "task": "code_review", "complexity": 0.5}'>{
+  "current_file": "src/test.py",
+  "task": "code_review",
+  "complexity": 0.5
+}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Available Actions</label>
+                    <div class="action-grid" id="action-grid">
+                        <div class="action-button selected" data-action="Read file: src/test.py">
+                            📖 Read File
+                        </div>
+                        <div class="action-button" data-action="Write file: src/output.py">
+                            ✍️ Write File
+                        </div>
+                        <div class="action-button" data-action="Execute: pytest tests/">
+                            ▶️ Run Tests
+                        </div>
+                        <div class="action-button" data-action="Analyze code quality">
+                            🔍 Analyze Code
+                        </div>
+                    </div>
+                </div>
+
+                <button id="select-action-btn" onclick="selectAction()">Select Action</button>
+                <button onclick="saveCheckpoint()" style="margin-left: 10px; background: #8b5cf6;">💾 Save Checkpoint</button>
+
+                <div id="action-result" class="result-box"></div>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="grid">
+            <div class="card">
+                <h2>🚨 Recent Alerts</h2>
+                <div id="alerts-container">
+                    <p style="color: #9ca3af;">No alerts</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📝 Activity Log</h2>
+                <div id="activity-log">
+                    <p style="color: #9ca3af;">No activity yet</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let selectedActions = ['Read file: src/test.py'];
+        let eventSource = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            setupActionButtons();
+            connectEventStream();
+            updateStatus();
+            setInterval(updateStatus, 5000); // Update every 5 seconds
+        });
+
+        // Setup action button selection
+        function setupActionButtons() {
+            document.querySelectorAll('.action-button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    btn.classList.toggle('selected');
+                    const action = btn.dataset.action;
+                    if (selectedActions.includes(action)) {
+                        selectedActions = selectedActions.filter(a => a !== action);
+                    } else {
+                        selectedActions.push(action);
+                    }
+                });
+            });
+        }
+
+        // Connect to event stream for real-time updates
+        function connectEventStream() {
+            eventSource = new EventSource('/api/events');
+            
+            eventSource.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleEvent(data);
+            };
+
+            eventSource.onerror = () => {
+                console.error('EventSource error, reconnecting...');
+                setTimeout(connectEventStream, 5000);
+            };
+        }
+
+        // Handle real-time events
+        function handleEvent(event) {
+            if (event.type === 'system_status') {
+                updateSystemStatus(event.data.status);
+            } else if (event.type === 'action_selected') {
+                addActivityLog('action', `Action selected: ${event.data.action} (risk: ${event.data.risk_score.toFixed(3)})`);
+            } else if (event.type === 'outcome_recorded') {
+                addActivityLog('outcome', `Outcome recorded: ${event.data.action} (safe: ${event.data.was_safe})`);
+            } else if (event.type === 'checkpoint_saved') {
+                addActivityLog('checkpoint', 'Checkpoint saved successfully');
+            }
+        }
+
+        // Update system status
+        async function updateStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+
+                if (data.status === 'ready') {
+                    updateSystemStatus('ready');
+                    updateMetrics(data);
+                } else {
+                    updateSystemStatus(data.status);
+                }
+            } catch (error) {
+                console.error('Status update error:', error);
+            }
+        }
+
+        function updateSystemStatus(status) {
+            const badge = document.getElementById('system-status');
+            badge.textContent = status;
+            badge.className = 'status-badge status-' + status;
+        }
+
+        function updateMetrics(data) {
+            // System config
+            document.getElementById('safety-tier').textContent = data.config.safety_tier;
+            document.getElementById('safe-mode').textContent = data.config.safe_mode ? 'Yes' : 'No';
+            document.getElementById('bert-model').textContent = data.config.bert_model;
+
+            // Monitoring metrics
+            const monitoring = data.monitoring;
+            document.getElementById('total-validations').textContent = monitoring.total_validations;
+            document.getElementById('approval-rate').textContent = (monitoring.approval_rate * 100).toFixed(1) + '%';
+            document.getElementById('error-rate').textContent = (monitoring.error_rate * 100).toFixed(1) + '%';
+            document.getElementById('avg-risk').textContent = monitoring.avg_risk_score.toFixed(3);
+
+            // Pattern memory
+            const safety = data.safety;
+            document.getElementById('safe-patterns').textContent = safety.patterns_learned.safe;
+            document.getElementById('unsafe-patterns').textContent = safety.patterns_learned.unsafe;
+            const totalPatterns = safety.patterns_learned.safe + safety.patterns_learned.unsafe;
+            const utilization = (totalPatterns / 2000) * 100;
+            document.getElementById('memory-util').textContent = utilization.toFixed(1) + '%';
+            document.getElementById('memory-progress').style.width = utilization + '%';
+
+            // BERT stats
+            const bert = data.bert;
+            document.getElementById('bert-encodings').textContent = bert.total_encodings;
+            document.getElementById('cache-hit-rate').textContent = (bert.cache_hit_rate * 100).toFixed(1) + '%';
+            document.getElementById('avg-time').textContent = bert.avg_time_ms.toFixed(1) + 'ms';
+            document.getElementById('simulation-mode').textContent = bert.is_simulation_mode ? 'Yes' : 'No';
+            document.getElementById('device').textContent = bert.device;
+        }
+
+        // Select action
+        async function selectAction() {
+            const btn = document.getElementById('select-action-btn');
+            const resultBox = document.getElementById('action-result');
+            
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+
+            try {
+                const observation = JSON.parse(document.getElementById('observation').value);
+                
+                if (selectedActions.length === 0) {
+                    throw new Error('Please select at least one action');
+                }
+
+                const response = await fetch('/api/action/select', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        observation: observation,
+                        available_actions: selectedActions
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showResult(result, 'success');
+                } else {
+                    showResult(result, 'error');
+                }
+            } catch (error) {
+                showResult({ error: error.message }, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Select Action';
+            }
+        }
+
+        function showResult(result, type) {
+            const resultBox = document.getElementById('action-result');
+            resultBox.className = 'result-box show ' + type;
+            
+            if (type === 'success') {
+                resultBox.innerHTML = `
+                    <h3 style="margin-bottom: 12px; color: #059669;">✓ Action Selected</h3>
+                    <p><strong>Action:</strong> ${result.action}</p>
+                    <p><strong>Risk Score:</strong> ${result.safety_validation.risk_score.toFixed(3)}</p>
+                    <p><strong>Workspace Dimension:</strong> ${result.workspace_dim}</p>
+                    <p><strong>Approved:</strong> ${result.approved ? 'Yes' : 'No'}</p>
+                    <p><strong>Requires Approval:</strong> ${result.requires_approval ? 'Yes' : 'No'}</p>
+                    ${result.adversarial_detection.is_outlier ? 
+                        `<p style="color: #dc2626;"><strong>⚠️ Adversarial Detection:</strong> ${result.adversarial_detection.reason}</p>` : ''}
+                `;
+            } else {
+                resultBox.innerHTML = `
+                    <h3 style="margin-bottom: 12px; color: #dc2626;">✗ Error</h3>
+                    <p>${result.error}</p>
+                `;
+            }
+        }
+
+        async function saveCheckpoint() {
+            try {
+                const response = await fetch('/api/persistence/save', { method: 'POST' });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    addActivityLog('checkpoint', 'Checkpoint saved: ' + result.checkpoint_path);
+                }
+            } catch (error) {
+                console.error('Checkpoint save error:', error);
+            }
+        }
+
+        function addActivityLog(type, message) {
+            const log = document.getElementById('activity-log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + type;
+            entry.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+            
+            if (log.querySelector('p')) {
+                log.innerHTML = '';
+            }
+            
+            log.insertBefore(entry, log.firstChild);
+            
+            // Keep only last 10 entries
+            while (log.children.length > 10) {
+                log.removeChild(log.lastChild);
+            }
+        }
+    </script>
+</body>
+</html>
