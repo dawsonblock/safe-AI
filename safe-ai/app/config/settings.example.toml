@@ -1,0 +1,66 @@
+# SAFE-AI Governor Settings
+# Copy to settings.toml and customize for your environment
+
+[general]
+enable = true                    # Set to false to activate kill switch
+data_dir = "./data"
+log_dir = "./logs"
+project_root = "."
+
+[keys]
+keys_dir = "./data/keys"
+default_key_id = "default"
+rotation_days = 90               # Rotate keys every 90 days
+
+[policy]
+safe_mode = true
+autonomy_tier = "gamma"
+policy_file = "./app/config/policy.yaml"
+
+[sandbox]
+runtime = "podman"               # podman or docker
+image = "python:3.12-slim"
+cpu_limit = "1.0"
+memory_limit = "512m"
+timeout_seconds = 300
+network_mode = "none"            # none, bridge, host
+read_only = true
+
+[audit]
+audit_log_path = "./data/audit.log"
+verify_on_startup = true
+max_records_in_memory = 1000
+
+[api]
+host = "0.0.0.0"
+port = 8000
+workers = 1
+reload = false
+log_level = "INFO"
+
+[rbac]
+jwt_algorithm = "RS256"          # RS256 or HS256
+jwt_secret = ""                  # For HS256 (use env var in production)
+jwt_public_key = ""              # For RS256 (use env var in production)
+jwt_private_key = ""             # For RS256 (use env var in production)
+token_expiry_seconds = 3600
+
+[mtls]
+enabled = false
+ca_cert = "./certs/ca.crt"
+server_cert = "./certs/server.crt"
+server_key = "./certs/server.key"
+client_cert_required = false
+
+[metrics]
+enabled = true
+port = 9090
+
+[rate_limit]
+enabled = true
+requests_per_minute = 100
+
+[logging]
+format = "json"                  # json or text
+level = "INFO"                   # DEBUG, INFO, WARNING, ERROR
+file = "./logs/safeai.log"

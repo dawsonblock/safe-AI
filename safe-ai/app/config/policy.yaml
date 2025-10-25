@@ -1,0 +1,86 @@
+# SAFE-AI Governor Policy Configuration
+
+safe_mode: true
+autonomy_tier: gamma  # alpha (strict) | beta (moderate) | gamma (permissive)
+
+# Allowed paths for modifications
+allow_paths:
+  - src/
+  - tests/
+  - app/
+  - docs/
+
+# Denied paths (higher priority than allow_paths)
+deny_paths:
+  - .git/
+  - .github/
+  - config/keys/
+  - /etc/
+  - /usr/
+  - /bin/
+  - /sbin/
+  - secrets/
+  - .env
+  - credentials/
+
+# Denied patterns (regex)
+deny_patterns:
+  # Subprocess execution
+  - '(?i)subprocess\.Popen\('
+  - '(?i)subprocess\.call\('
+  - '(?i)subprocess\.run\('
+  - 'os\.system\('
+  
+  # Dangerous commands
+  - 'rm\s+-rf'
+  - 'rm\s+--recursive'
+  - 'dd\s+if='
+  - 'mkfs\.'
+  
+  # Network operations
+  - 'curl\s+http'
+  - 'wget\s+'
+  - 'fetch\('
+  - 'requests\.get\('
+  - 'urllib\.request'
+  
+  # SSH/Remote access
+  - '(?i)ssh\s+'
+  - 'paramiko\.'
+  - 'fabric\.'
+  
+  # Dynamic execution
+  - '(?i)eval\('
+  - '(?i)exec\('
+  - '__import__\('
+  - 'importlib\.import_module'
+  
+  # Package installation
+  - 'pip\s+install'
+  - 'apt-get\s+install'
+  - 'yum\s+install'
+  
+  # File system manipulation
+  - 'shutil\.rmtree'
+  - 'os\.remove\('
+  - 'pathlib\..*\.unlink'
+  
+  # Serialization attacks
+  - 'pickle\.loads'
+  - 'yaml\.load\('
+  - 'marshal\.loads'
+
+# Allowed operations
+allowed_operations:
+  - replace
+  - insert
+  - delete
+
+# Size limits
+max_edit_size_bytes: 65536      # 64KB per edit
+max_total_size_bytes: 524288    # 512KB total per manifest
+
+# Additional constraints
+require_tests: true              # Manifests must include tests
+min_rationale_length: 10         # Minimum rationale characters
+max_files_per_manifest: 50       # Maximum files modified per change

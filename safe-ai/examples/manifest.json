@@ -1,0 +1,19 @@
+{
+  "targets": [
+    "src/example.py"
+  ],
+  "edits": [
+    {
+      "path": "src/example.py",
+      "op": "replace",
+      "start": 0,
+      "end": 0,
+      "text": "# Example module\n\ndef hello_world():\n    \"\"\"Print hello world.\"\"\"\n    print(\"Hello, World!\")\n\nif __name__ == \"__main__\":\n    hello_world()\n"
+    }
+  ],
+  "tests": [
+    "python src/example.py"
+  ],
+  "rationale": "Create example module demonstrating basic functionality for documentation purposes",
+  "version": "1.0.0"
+}

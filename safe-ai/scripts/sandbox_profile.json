@@ -1,0 +1,79 @@
+{
+  "description": "SAFE-AI Governor sandbox security profile",
+  "runtime": "podman",
+  "security": {
+    "rootless": true,
+    "no_new_privileges": true,
+    "seccomp": "default",
+    "apparmor": "default",
+    "selinux": "default",
+    "capabilities": {
+      "drop": ["ALL"],
+      "add": []
+    },
+    "readonly_rootfs": false,
+    "masked_paths": [
+      "/proc/acpi",
+      "/proc/kcore",
+      "/proc/keys",
+      "/proc/latency_stats",
+      "/proc/timer_list",
+      "/proc/timer_stats",
+      "/proc/sched_debug",
+      "/proc/scsi",
+      "/sys/firmware"
+    ],
+    "readonly_paths": [
+      "/proc/asound",
+      "/proc/bus",
+      "/proc/fs",
+      "/proc/irq",
+      "/proc/sys",
+      "/proc/sysrq-trigger"
+    ]
+  },
+  "resources": {
+    "cpu_limit": "1.0",
+    "memory_limit": "512m",
+    "pids_limit": 100,
+    "ulimits": {
+      "nofile": {
+        "soft": 1024,
+        "hard": 1024
+      },
+      "nproc": {
+        "soft": 100,
+        "hard": 100
+      }
+    }
+  },
+  "network": {
+    "mode": "none",
+    "dns": [],
+    "hosts": {}
+  },
+  "mounts": {
+    "project": {
+      "source": "/workspace",
+      "target": "/workspace",
+      "type": "bind",
+      "readonly": true
+    },
+    "tmp": {
+      "target": "/tmp",
+      "type": "tmpfs",
+      "options": ["rw", "noexec", "nosuid", "size=128m"]
+    }
+  },
+  "environment": {
+    "HOME": "/tmp",
+    "PATH": "/usr/local/bin:/usr/bin:/bin",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONUNBUFFERED": "1"
+  },
+  "timeouts": {
+    "execution": 300,
+    "startup": 30,
+    "shutdown": 10
+  }
+}
