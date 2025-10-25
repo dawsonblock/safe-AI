@@ -39,6 +39,12 @@ A cryptographically-gated AI change management system with:
 
 ```bash
 cd /workspace/safe-ai
+
+# Quick install (recommended)
+./scripts/install.sh
+
+# Or manual install
+pip install -r requirements.txt
 pip install -e .
 ```
 
